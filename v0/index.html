@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+    <title>qrbjb v0</title>
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32'><rect width='32' height='32' fill='black'/></svg>"
+    />
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Gabarito&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: "Gabarito", sans-serif;
+        font-size: 1em;
+        margin: 0;
+        padding: 1em;
+        background: #f4f4f4;
+        color: #000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+      }
+
+      #startPrompt {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.85);
+        color: white;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 1.5em;
+        cursor: pointer;
+        z-index: 9999;
+        user-select: none;
+        text-align: center;
+        padding: 1em;
+        box-sizing: border-box;
+      }
+
+      h1 {
+        margin: 0.2em 0;
+      }
+
+      #qrReader {
+        width: 100%;
+        max-width: 480px;
+        height: 50vh;
+        background: #000;
+        margin: 1em 0;
+        overflow: hidden;
+      }
+
+      button {
+        font-size: 1em;
+        padding: 0.7em;
+        margin: 0.3em;
+        width: 100%;
+        max-width: 480px;
+        border: none;
+        background: #222;
+        color: #fff;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: #000;
+      }
+
+      #output {
+        margin: 0.5em 0;
+        font-weight: bold;
+      }
+
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 1em 0;
+        max-height: 10em;
+        overflow-y: auto;
+        width: 100%;
+        max-width: 480px;
+      }
+
+      li {
+        margin: 0.2em 0;
+        padding: 0.3em;
+        background-color: lightgreen;
+      }
+
+      .btnGroup {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.3em;
+        justify-content: center;
+        max-width: 480px;
+      }
+
+      .btnGroup button {
+        flex: 1 1 48%;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>qrbjb v0</h1>
+
+    <div id="startPrompt">
+      Hello!<br />
+      Tap anywhere to start scanning
+    </div>
+
+    <div id="qrReader"></div>
+    <p id="output"></p>
+    <ul id="scannedList"></ul>
+
+    <div class="btnGroup">
+      <button id="copyRawBtn">Copy codes</button>
+      <button id="copyRawWA">Send (WA)</button>
+      <button id="copySummaryBtn">Copy summary</button>
+      <button id="shareSummaryWA">Share summary (WA)</button>
+    </div>
+
+    <script>
+      let scanner;
+      const scannedMap = new Map();
+
+      const url =
+        "https://script.google.com/macros/s/AKfycbwIjVDUIGBjI3E_H7bze1CyM5Daup904f92fvnU7NuFSzIbgfQTEjKOe6Lu_0IQMVsyoA/exec";
+
+      let isBeepPlaying = false;
+      const beepSound = new Audio("../audio/store-scanner-beep-90395.mp3");
+
+      function playBeep() {
+        if (isBeepPlaying) {
+          beepSound.pause();
+          beepSound.currentTime = 0;
+        }
+        isBeepPlaying = true;
+        beepSound.play();
+        beepSound.onended = () => {
+          isBeepPlaying = false;
+        };
+      }
+
+      function addToList(code) {
+        const ul = document.getElementById("scannedList");
+        const li = document.createElement("li");
+        li.textContent = code;
+        ul.insertBefore(li, ul.firstChild);
+
+        const total = ul.children.length;
+        for (let i = 0; i < total; i++) {
+          const item = ul.children[i];
+          const text = item.textContent.replace(/^\d+\.\s*/, "");
+          item.textContent = `${total - i}. ${text}`;
+        }
+
+        li.style.backgroundColor = "yellow";
+        setTimeout(() => {
+          li.style.backgroundColor = "lightgreen";
+        }, 500);
+      }
+
+      function highlightExisting(code) {
+        const ul = document.getElementById("scannedList");
+        for (const li of ul.children) {
+          if (li.textContent.includes(code)) {
+            li.style.backgroundColor = "yellow";
+            setTimeout(() => {
+              li.style.backgroundColor = "white";
+            }, 500);
+            break;
+          }
+        }
+      }
+
+      function show(message, color = "black") {
+        const output = document.getElementById("output");
+        output.textContent = message;
+        document.body.style.backgroundColor =
+          color === "black" ? "white" : color;
+      }
+
+      function startScanner() {
+        scanner = new Html5Qrcode("qrReader");
+        Html5Qrcode.getCameras()
+          .then((cameras) => {
+            const backCam =
+              cameras.find((c) => c.label.toLowerCase().includes("back")) ||
+              cameras[0];
+            if (!backCam) return show("No camera found");
+            scanner
+              .start(
+                { deviceId: { exact: backCam.id } },
+                { fps: 10, qrbox: { width: 400, height: 300 } },
+                (code) => {
+                  if (!scannedMap.has(code)) {
+                    scannedMap.set(code, new Date());
+                    show("New code scanned", "orange");
+                    addToList(code);
+                    playBeep();
+                  } else {
+                    show("Already scanned", "lightgreen");
+                    highlightExisting(code);
+                  }
+                }
+              )
+              .then(() => show("Ready to scan"))
+              .catch((err) => show("Can't start scanner: " + err));
+          })
+          .catch((err) => show("Can't access camera: " + err));
+      }
+
+      function sendToBackend() {
+        if (scannedMap.size === 0) {
+          alert("No scans to send");
+          return;
+        }
+        const formatLocalDate = (d) =>
+          d.toLocaleString("en-GB", { hour12: false }).replace(",", "");
+        const data = Array.from(scannedMap).map(([code, date]) => ({
+          date: formatLocalDate(date),
+          code,
+        }));
+        const payload = new URLSearchParams();
+        payload.append("data", JSON.stringify(data));
+        fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: payload.toString(),
+        })
+          .then((res) =>
+            res.ok ? res.text() : Promise.reject("Network error")
+          )
+          .then((text) => alert("Sent:\n" + text))
+          .catch((err) => alert("Failed to send: " + err));
+      }
+
+      function copyRaw() {
+        const text = Array.from(scannedMap.keys()).join("\n");
+        navigator.clipboard
+          .writeText(text)
+          .then(() => alert("Codes copied\n\n" + text));
+      }
+
+      function copyRawWA() {
+        const text = encodeURIComponent(
+          Array.from(scannedMap.keys()).join("\n")
+        );
+        window.open(`https://wa.me/?text=${text}`, "_blank");
+      }
+
+      function copySummary() {
+        let out = `Total: ${scannedMap.size}\n\n`;
+        for (const [code, date] of scannedMap) {
+          out += `${code} — ${date.toLocaleString("en-GB")}\n`;
+        }
+        navigator.clipboard
+          .writeText(out)
+          .then(() => alert("Copied with time\n\n" + out));
+      }
+
+      function shareSummaryWA() {
+        let out = `Total: ${scannedMap.size}\n\n`;
+        for (const [code, date] of scannedMap) {
+          out += `${code} — ${date.toLocaleString("en-GB")}\n`;
+        }
+        window.open(`https://wa.me/?text=${encodeURIComponent(out)}`, "_blank");
+      }
+
+      // buttons
+      document.getElementById("copyRawBtn").onclick = copyRaw;
+      document.getElementById("copyRawWA").onclick = copyRawWA;
+      document.getElementById("copySummaryBtn").onclick = copySummary;
+      document.getElementById("shareSummaryWA").onclick = () => {
+        sendToBackend(); // first, send data to backend
+        shareSummaryWA(); // then, open WhatsApp
+      };
+
+      const startPrompt = document.getElementById("startPrompt");
+
+      startPrompt.addEventListener("click", () => {
+        startPrompt.style.display = "none";
+        playBeep();
+        setTimeout(startScanner, 1000);
+      });
+    </script>
+  </body>
+</html>
