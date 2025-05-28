@@ -1,4 +1,6 @@
-# Run local
+# qrbjb
+
+## Run local
 
 1. Install `mkcert` and `http-server` (skip if installed):
 
@@ -23,6 +25,18 @@
    http-server -S -C "cert/$ip.pem" -K "cert/$ip-key.pem" -p 443
    ```
 
-# Credits
+## Files
+
+```txt
+/
+├── index.html           Current version (uses html5-qrcode)
+├── v0/
+│   └── index.html       Original version (zxing, not updated)
+└── v0-updated/
+    └── index.html       v0 updated with html5-qrcode (compatible with current libs)
+
+```
+
+## Credits
 
 Sound effect from [Pixabay](https://pixabay.com/sound-effects/store-scanner-beep-90395/)
