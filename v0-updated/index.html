@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+    <title>qrbjb</title>
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="/favicon.svg"
+    />
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Gabarito&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: "Gabarito", sans-serif;
+        font-size: 1em;
+        margin: 0;
+        padding: 1em;
+        background: #f4f4f4;
+        color: #000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+      }
+
+      #startPrompt {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.85);
+        color: white;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        font-size: 1.5em;
+        cursor: pointer;
+        z-index: 9999;
+        user-select: none;
+        text-align: center;
+        padding: 1em;
+        box-sizing: border-box;
+      }
+
+      .hello {
+        font-size: 150%;
+      }
+
+      .projectName {
+        margin-block-start: 8rem;
+      }
+
+      h1 {
+        margin: 0.2em 0;
+      }
+
+      #qrReader {
+        width: 100%;
+        max-width: 480px;
+        height: 50vh;
+        background: #000;
+        margin: 1em 0;
+        overflow: hidden;
+      }
+
+      button {
+        font-size: 1em;
+        padding: 0.7em;
+        margin: 0.3em;
+        width: 100%;
+        max-width: 480px;
+        border: none;
+        background: #222;
+        color: #fff;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: #000;
+      }
+
+      #output {
+        margin: 0.5em 0;
+        font-weight: bold;
+      }
+
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 1em 0;
+        max-height: 10em;
+        overflow-y: auto;
+        width: 100%;
+        max-width: 480px;
+      }
+
+      #scannedList li {
+        margin: 0.2em 0;
+        padding: 0.3em;
+        background-color: lightgreen;
+
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      #scannedList li span {
+        flex: 1;
+        text-align: right;
+      }
+
+      .btnGroup {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.3em;
+        justify-content: center;
+        max-width: 480px;
+      }
+
+      .btnGroup button {
+        flex: 1 1 48%;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>qrbjb <small>v0u</small></h1>
+
+    <div id="startPrompt">
+      <div class="hello">Hello!</div>
+      <div>Tap anywhere to start scanning</div>
+
+      <div class="projectName"><small>qrbjb</small></div>
+    </div>
+
+    <div id="qrReader"></div>
+    <p id="output"></p>
+    <ul id="scannedList"></ul>
+
+    <div class="btnGroup">
+      <button id="copyCodesBtn">Copy</button>
+      <button id="copyAllBtn">Copy All</button>
+      <button id="sendCodesBtn">Send WA</button>
+      <button id="shareAllBtn">Share All WA</button>
+    </div>
+
+    <script>
+      const scannedMap = new Map();
+
+      const url =
+        "https://script.google.com/macros/s/AKfycbwIjVDUIGBjI3E_H7bze1CyM5Daup904f92fvnU7NuFSzIbgfQTEjKOe6Lu_0IQMVsyoA/exec";
+
+      let isBeepPlaying = false;
+      const beepSound = new Audio("../audio/store-scanner-beep-90395.mp3");
+
+      function playBeep() {
+        if (isBeepPlaying) {
+          beepSound.pause();
+          beepSound.currentTime = 0;
+        }
+        isBeepPlaying = true;
+        beepSound.play();
+        beepSound.onended = () => {
+          isBeepPlaying = false;
+        };
+      }
+
+      function addToList(code) {
+        const ul = document.getElementById("scannedList");
+        const li = document.createElement("li");
+
+        li.innerHTML = `<strong></strong><span>${code}</span>`;
+
+        ul.insertBefore(li, ul.firstChild);
+
+        const total = ul.children.length;
+        for (let i = 0; i < total; i++) {
+          const item = ul.children[i];
+          const strong = item.querySelector("strong");
+          strong.textContent = `${total - i}.`;
+        }
+
+        li.style.backgroundColor = "yellow";
+        setTimeout(() => {
+          li.style.backgroundColor = "lightgreen";
+        }, 500);
+      }
+
+      function highlightExisting(code) {
+        const ul = document.getElementById("scannedList");
+        for (const li of ul.children) {
+          if (li.textContent.includes(code)) {
+            li.style.backgroundColor = "yellow";
+            setTimeout(() => {
+              li.style.backgroundColor = "white";
+            }, 500);
+            break;
+          }
+        }
+      }
+
+      function show(message, color = "black") {
+        const output = document.getElementById("output");
+        output.textContent = message;
+        document.body.style.backgroundColor =
+          color === "black" ? "white" : color;
+      }
+
+      async function startScanner() {
+        const qrReaderDiv = document.getElementById("qrReader");
+        qrReaderDiv.innerHTML = "";
+
+        const html5QrCode = new Html5Qrcode("qrReader");
+        const config = { fps: 10, qrbox: { width: 400, height: 300 } };
+
+        try {
+          const cameras = await Html5Qrcode.getCameras();
+          if (!cameras || cameras.length === 0) {
+            show("No camera found");
+            return;
+          }
+
+          const backCamera =
+            cameras.find((c) => c.label.toLowerCase().includes("back")) ||
+            cameras[0];
+
+          html5QrCode.start(
+            backCamera.id,
+            config,
+            (code) => {
+              const isNew = !scannedMap.has(code);
+              if (isNew) {
+                scannedMap.set(code, new Date());
+                addToList(code);
+                playBeep();
+              } else {
+                highlightExisting(code);
+              }
+
+              show(
+                isNew ? "New code scanned" : "Already scanned",
+                isNew ? "lightgreen" : "orange"
+              );
+
+              if (isNew) {
+                setTimeout(() => show("Ready to scan"), 1000);
+              }
+            },
+            (errorMsg) => {
+              // Ignore scan errors
+            }
+          );
+
+          show("Ready to scan");
+        } catch (err) {
+          show("Can't start scanner: " + err);
+        }
+      }
+
+      function sendToBackend() {
+        if (scannedMap.size === 0) {
+          alert("No scans to send");
+          return;
+        }
+        const formatLocalDate = (d) =>
+          d.toLocaleString("en-GB", { hour12: false }).replace(",", "");
+        const data = Array.from(scannedMap).map(([code, date]) => ({
+          date: formatLocalDate(date),
+          code,
+        }));
+        const payload = new URLSearchParams();
+        payload.append("data", JSON.stringify(data));
+        fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: payload.toString(),
+        })
+          .then((res) =>
+            res.ok ? res.text() : Promise.reject("Network error")
+          )
+          .then((text) => alert("Sent:\n" + text))
+          .catch((err) => alert("Failed to send: " + err));
+      }
+
+      function getCodesText(withTime = false) {
+        if (scannedMap.size === 0) return null;
+
+        if (!withTime) {
+          return Array.from(scannedMap.keys()).join("\n");
+        }
+
+        let out = `Total: ${scannedMap.size}\n\n`;
+        for (const [code, date] of scannedMap) {
+          out += `${code} — ${date.toLocaleString("en-GB")}\n`;
+        }
+        return out;
+      }
+
+      function copyText(text, msg) {
+        navigator.clipboard
+          .writeText(text)
+          .then(() => alert(msg + "\n\n" + text))
+          .catch(() => alert("Copy failed"));
+      }
+
+      function sendToWA(text) {
+        navigator.clipboard.writeText(text).catch(() => {});
+        const encoded = encodeURIComponent(text);
+        window.open(`https://wa.me/?text=${encoded}`, "_blank");
+      }
+
+      function copyCodes() {
+        const text = getCodesText(false);
+        if (!text) return alert("No codes to copy");
+        copyText(text, "Codes copied");
+      }
+
+      function copyAndSendCodesToWA() {
+        const text = getCodesText(false);
+        if (!text) return alert("No codes to send");
+        sendToWA(text);
+      }
+
+      function copyAll() {
+        const text = getCodesText(true);
+        if (!text) return alert("No codes to copy");
+        copyText(text, "Copied with time");
+      }
+
+      function shareAllToWA() {
+        const text = getCodesText(true);
+        if (!text) return alert("No codes to share");
+        sendToWA(text);
+      }
+
+      // buttons
+      document.getElementById("copyCodesBtn").onclick = copyCodes;
+      document.getElementById("copyAllBtn").onclick = copyAll;
+      document.getElementById("sendCodesBtn").onclick = copyAndSendCodesToWA;
+      document.getElementById("shareAllBtn").onclick = () => {
+        sendToBackend(); // first, send data to backend
+        shareAllToWA(); // then, open WhatsApp
+      };
+
+      const startPrompt = document.getElementById("startPrompt");
+
+      startPrompt.addEventListener("click", async () => {
+        startPrompt.style.display = "none";
+        playBeep();
+        await new Promise((r) => setTimeout(r, 1000));
+        await startScanner();
+      });
+    </script>
+  </body>
+</html>
